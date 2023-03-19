@@ -123,3 +123,18 @@ model_3 <- glm(V3 ~ RC1+RC2, data = final_3,
 summary(model_3)
 ```
 The p-values presented in the table above are all less than 0.05, indicating that the third model fits well and that the first three variables are the most important factors influencing the goodness of the fit.
+```{r, eval=TRUe, echo=FALSE}
+coffee1_5 <- coffee_glm %>% select(aroma, flavor, acidity, altitude_mean_meters)
+coffee1_5_pca<-princomp(coffee1_5, cor=T)
+summary(coffee1_5_pca)
+```
+```{r, eval=TRUE, echo=FALSE}
+corr5 <- cor(coffee1_5, coffee1_5)
+pca4 <- principal(corr4, nfactor = 3, rotate= "cluster")
+score5 <- predict.psych(pca4, coffee_c )
+final_4 <- cbind(score5, coffee_glm$Qualityclass)
+final_4 <- as.data.frame(final_4)
+model_4 <- glm(V4 ~ RC1+RC2+RC3, data = final_4, 
+               family = binomial(link = "logit"))
+summary(model_4)
+```
