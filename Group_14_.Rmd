@@ -2,7 +2,7 @@
 title: "Group_14_Analysis"
 output: pdf_document
 ---
-#Introduction
+# Introduction
 
 ```{r packages, include=FALSE}
 library(ggplot2)
@@ -21,12 +21,32 @@ library(psych)
 library(janitor)
 ```
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Here is the brief description of the data:
+
+Variable Name             | Description    
+:------------------------:|:------------------------------:
+ country_of_origin        | Country where the coffee bean originates from           
+ aroma                    | Aroma grade (ranging from 0-10)           
+ flavor                   | Flavour grade (ranging from 0-10)
+ acidity                  | Acidity grade (ranging from 0-10)
+ category_two_defects     | Count of category 2 type defects in the batch of coffee beans tested          
+ altitiude_mean_meters    | Mean altitude of the growers farm (in metres) 
+ harvested                | Year the batch was harvested
+ Qualityclass             | Quality score for the batch.
+
+Note: About Qualityclass, 82.5 was selected as the cut off as this is the median score for all the batches tested.
+
 ```{r dataset, include=FALSE}
 coffee <- read.csv("https://raw.githubusercontent.com/martacasero7/DAS-Group-14/main/dataset14.csv")
 coffee <- na.omit(coffee)
 ```
 
-#Summaries
+\newpage
+# Summaries
 ```{r summarytable, echo=FALSE, warning=FALSE, message=FALSE,results='markup', fig.show='asis', eval=TRUE, table.pos="H"}
 library(skimr)
 library(kableExtra)
@@ -41,24 +61,31 @@ my_skim(coffee[2:7]) %>%
   kable_styling(font_size = 10, latex_options = "hold_position")
 ```
 
+We have performed numerical summaries of the data as well as done some plots to visualise the data.
 ```{r summaries, echo=FALSE, warning=FALSE}
 coffee_table <- summary(coffee)
 kable(coffee_table, col.names = colnames(coffee_table),
       caption = "Summarie of the quality of coffee datset") %>%
-  kable_styling(latex_options = "HOLD_position")
+  kable_styling(font_size = 5.5, latex_options = "HOLD_position")
+```
 
+```{r, echo=FALSE, eval = TRUE, warning=FALSE, fig.align = "center", fig.cap = "\\label{fig:scat} Barplot of country of origin", fig.pos = "H"}
 ggplot(data = coffee, aes(x=country_of_origin, group = Qualityclass)) +
   geom_bar(aes(y = ..prop.., fill= Qualityclass), stat="count", position="dodge") +
    scale_fill_manual(values = c("darkseagreen", "indianred")) +
-  labs(x= "Where is the coffee from?", y="Proportion") +
+  labs(x= "", y="Proportion") +
   ggpubr::rotate_x_text() # The first plot is a bar chart showing the proportion of coffee quality classes by country of origin. 
+```
 
+```{r, echo=FALSE, eval = TRUE, warning=FALSE, fig.align = "center", fig.cap = "\\label{fig:scat} Barplot of year harvesteds", fig.pos = "H"}
 coffee$harvested <- as.factor(coffee$harvested)
 ggplot(data = coffee, aes(x=harvested, group = Qualityclass)) +
   geom_bar(aes(y = ..prop.., fill= Qualityclass), stat="count", position="dodge") +
   scale_fill_manual(values = c("darkseagreen", "indianred")) +
-  labs(x= "When was the coffee harvested?", y="Proportion") #The second plot is a bar chart showing the proportion of coffee quality classes by when the coffee was harvested. 
+  labs(x= "", y="Proportion") #The second plot is a bar chart showing the proportion of coffee quality classes by when the coffee was harvested. 
+```
 
+```{r, echo=FALSE, eval = TRUE, warning=FALSE, fig.align = "center", fig.cap = "\\label{fig:scat} Boxplots of coffee qualities", fig.pos = "H"}
 #Some data wrangling to get a nice boxplot with aroma, flavor and acidity
 coffee_long <- melt(coffee, id="Qualityclass")
 coffee_qualities <- coffee_long %>% filter(!(variable %in% c("country_of_origin", "category_two_defects", "altitude_mean_meters", "harvested"))) %>% filter(value != "0") 
@@ -67,12 +94,16 @@ ggplot(coffee_qualities, aes(x = variable, y=value)) +
   geom_boxplot(aes(fill= Qualityclass)) + 
   scale_fill_manual(values = c("darkseagreen", "indianred")) +
   labs(x="", y="Grade")#The third plot is a boxplot comparing the grades of coffee based on different qualities such as aroma, flavor, and acidity. 
+```
 
+```{r, echo=FALSE, eval = TRUE, warning=FALSE, fig.align = "center", fig.cap = "\\label{fig:scat} Boxplot of cateogry two defects", fig.pos = "H"}
 ggplot(coffee, aes(y=category_two_defects)) +
   geom_boxplot(aes(fill=Qualityclass)) +
   scale_fill_manual(values = c("darkseagreen", "indianred")) +
-  labs(x="Category two defects", y="Count")#The fourth plot is a boxplot comparing the number of category two defects by quality class. 
+  labs(x="", y="Count")#The fourth plot is a boxplot comparing the number of category two defects by quality class. 
+```
 
+```{r, echo=FALSE, eval = TRUE, warning=FALSE, fig.align = "center", fig.cap = "\\label{fig:scat} Boxplot of altitude", fig.pos = "H"}
 coffee_alt <- coffee %>% drop_na(altitude_mean_meters)
 ggplot(coffee_alt, aes(y=altitude_mean_meters)) +
   geom_boxplot(aes(fill=Qualityclass), outlier.shape = NA) +
@@ -81,23 +112,24 @@ ggplot(coffee_alt, aes(y=altitude_mean_meters)) +
   labs(x="", y="Altitude")#The fifth plot is a boxplot comparing the altitude of coffee farms by quality class. 
 ```
 
-In this part, we perform some data cleaning to prepare the data for GLMs. For instance, deleting rows with null values and converting quality of coffee from Poor and Good to a numerical variable with 0 and 1
+
 ```{r dataset2, include=FALSE}
 coffee$Qualityclass <- as.integer(as.factor(coffee$Qualityclass))-1
 coffee$harvested <- as.numeric(coffee$harvested)
 coffee_glm <- na.omit(coffee)
 ```
 
-## correlation analysis
+## Correlation analysis
 Next we perform a correlation matrix on some of the variables to see how they are related and be able to make a better decision about what models are best to fit. We have not used the country of origin as from the plots and summaries there didn't seem to be a relation between this variable and quality of coffee.
-```{r, eval = TRUE, fig.align = "center", fig.cap = "\\label{fig:scat} correlation between each variables", fig.pos = "H"}
+```{r, echo=FALSE, eval = TRUE, fig.align = "center", fig.cap = "\\label{fig:scat} correlation between each variables", fig.pos = "H"}
 ggpairs(coffee_glm[,2:8])
 ```
 
 Figure 1 shows there is strong correlation between the first three variables: aroma, flavor and acidity. In addition, aroma, flavor and acidity have medium correlation with Quality Class, category is in weak correlation. However, the correlation of the last two variables are strongly weak. 
 
+\newpage
 # GLM Part 1
-The strong correlation shows that we need can do further data cleaning. First, separating the dataset into two categories, the first one with the variables with high correlation values we have called this dataset coffee1_1 and the second with the uncorrelated variables, called coffee1_2.
+The strong correlation shows that we need can do further data cleaning. For instance, deleting rows with null values and converting quality of coffee from Poor and Good to a numerical variable with 0 and 1. We have also separated the dataset into two categories, the first one with the variables with high correlation values we have called this dataset coffee1_1 and the second with the uncorrelated variables, called coffee1_2.
 ```{r, eval=TRUE, echo=FALSE}
 coffee1_1 <- coffee_glm[,2:4]
 coffee1_2 <- coffee_glm[,5:8]
@@ -200,6 +232,9 @@ model_4 <- glm(V4 ~ RC1+RC2+RC3, data = final_4,
 ```
 The GLM has low p-values in all the components but one so it is not the model we have fitted.
 
+
+
+\newpage
 # GLM Part 2
 Even though the correlation matrix showed a high correlation between the variables aroma, flavor and acidity, we have perfored GLMs with them without performing PCA.
 
@@ -236,23 +271,20 @@ coffee <- remove_outliers(coffee, "altitude_mean_meters")
 coffee$Qualityclass <- as.factor(coffee$Qualityclass)
 ```
 
+## Model 1
+We have fitted a model with aroma, flavor, acidity, category two defects, year harevested and altitude as explanatory variables
+
 ```{r, echo=FALSE, warning=FALSE}
 model1 <- glm(Qualityclass ~ aroma + flavor + acidity + category_two_defects + harvested + altitude_mean_meters,
              data = coffee,
              family = binomial(link = "logit"))
 summ(model1)
 ```
-## Model 1
-We have fitted a model with aroma, flavor, acidity, category two defects, year harevested and altitude as explanatory variables
-```{r, echo=FALSE, warning=FALSE}
-model1 <- glm(Qualityclass ~ aroma + flavor + acidity + category_two_defects + altitude_mean_meters,
-             data = coffee,
-             family = binomial(link = "logit"))
-summ(model1)
-```
-As the p-value for category two defects in the model is greater than 0.05, we have fitted a new GLm without it as an explanory variable.
+
+\newpage
 
 ## Model 2
+As the p-value for category two defects in the model is greater than 0.05, we have fitted a new GLm without it as an explanory variable.
 ```{r, echo=FALSE, warning=FALSE}
 
 model2 <- glm(Qualityclass ~ aroma + flavor + acidity + harvested + altitude_mean_meters,
@@ -261,7 +293,7 @@ model2 <- glm(Qualityclass ~ aroma + flavor + acidity + harvested + altitude_mea
 
 summ(model2)
 
-model2 %>%
+pvalues2 <- model2 %>%
   coef() %>%
   exp()
 
@@ -271,7 +303,7 @@ coffee <- coffee %>%
 
 
 
-plot_model(model2, show.values = TRUE,
+plot <- plot_model(model2, show.values = TRUE,
            title = "", show.p = FALSE, value.offset = 0.25)
 
 plot_model(model2,show.values = TRUE,
@@ -279,18 +311,18 @@ plot_model(model2,show.values = TRUE,
 
 ```
 
-Given that the p-value for year harvested is 0.04 which is close to 0.05, we have performed a model without year harvested as a explanatory variable to compared to this last model.
-
+\newpage
 ## Model 3
+As the p-value for category two defects in the model is greater than 0.05, we have fitted a new GLm without it as an explanory variable.
 ```{r, echo=FALSE, warning=FALSE}
 
-model3 <- glm(Qualityclass ~ aroma + flavor + acidity + harvested + altitude_mean_meters,
+model3 <- glm(Qualityclass ~ aroma + flavor + acidity  + altitude_mean_meters,
              data = coffee,
              family = binomial(link = "logit"))
 
 summ(model3)
 
-model3 %>%
+pvalues3 <- model3 %>%
   coef() %>%
   exp()
 
@@ -298,9 +330,7 @@ model3 %>%
 coffee <- coffee %>%
   mutate(Qualityclass_fitted = fitted(model2))
 
-
-
-plot_model(model3, show.values = TRUE,
+plot <- plot_model(model3, show.values = TRUE,
            title = "", show.p = FALSE, value.offset = 0.25)
 
 plot_model(model3,show.values = TRUE,
