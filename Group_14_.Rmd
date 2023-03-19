@@ -1,0 +1,310 @@
+---
+title: "Group_14_Analysis"
+output: pdf_document
+---
+#Introduction
+
+```{r packages, include=FALSE}
+library(ggplot2)
+library(readr)
+library(dplyr)
+library(tidyverse)
+library(moderndive)
+library(gapminder)
+library(sjPlot)
+library(stats)
+library(jtools)
+library(reshape2)    
+library(ggpubr)
+library(GGally)
+library(psych)
+library(janitor)
+```
+
+```{r dataset, include=FALSE}
+coffee <- read.csv("https://raw.githubusercontent.com/martacasero7/DAS-Group-14/main/dataset14.csv")
+coffee <- na.omit(coffee)
+```
+
+#Summaries
+```{r summarytable, echo=FALSE, warning=FALSE, message=FALSE,results='markup', fig.show='asis', eval=TRUE, table.pos="H"}
+library(skimr)
+library(kableExtra)
+my_skim <- skim_with(numeric = sfl(hist = NULL), 
+                    base = sfl(n = length))
+my_skim(coffee[2:7]) %>%
+  transmute(Variable=skim_variable, n = n, Mean=round(numeric.mean,2), SD=round(numeric.sd,2),
+            Min=numeric.p0, Median=numeric.p50,  Max=numeric.p100,
+            IQR = numeric.p75-numeric.p50) %>%
+  kable(caption = '\\label{tab:summariesskim} Summary statistics 
+        of the coffee data') %>%
+  kable_styling(font_size = 10, latex_options = "hold_position")
+```
+
+```{r summaries, echo=FALSE, warning=FALSE}
+coffee_table <- summary(coffee)
+kable(coffee_table, col.names = colnames(coffee_table),
+      caption = "Summarie of the quality of coffee datset") %>%
+  kable_styling(latex_options = "HOLD_position")
+
+ggplot(data = coffee, aes(x=country_of_origin, group = Qualityclass)) +
+  geom_bar(aes(y = ..prop.., fill= Qualityclass), stat="count", position="dodge") +
+   scale_fill_manual(values = c("darkseagreen", "indianred")) +
+  labs(x= "Where is the coffee from?", y="Proportion") +
+  ggpubr::rotate_x_text() # The first plot is a bar chart showing the proportion of coffee quality classes by country of origin. 
+
+coffee$harvested <- as.factor(coffee$harvested)
+ggplot(data = coffee, aes(x=harvested, group = Qualityclass)) +
+  geom_bar(aes(y = ..prop.., fill= Qualityclass), stat="count", position="dodge") +
+  scale_fill_manual(values = c("darkseagreen", "indianred")) +
+  labs(x= "When was the coffee harvested?", y="Proportion") #The second plot is a bar chart showing the proportion of coffee quality classes by when the coffee was harvested. 
+
+#Some data wrangling to get a nice boxplot with aroma, flavor and acidity
+coffee_long <- melt(coffee, id="Qualityclass")
+coffee_qualities <- coffee_long %>% filter(!(variable %in% c("country_of_origin", "category_two_defects", "altitude_mean_meters", "harvested"))) %>% filter(value != "0") 
+coffee_qualities$value <- as.numeric(coffee_qualities$value)
+ggplot(coffee_qualities, aes(x = variable, y=value)) + 
+  geom_boxplot(aes(fill= Qualityclass)) + 
+  scale_fill_manual(values = c("darkseagreen", "indianred")) +
+  labs(x="", y="Grade")#The third plot is a boxplot comparing the grades of coffee based on different qualities such as aroma, flavor, and acidity. 
+
+ggplot(coffee, aes(y=category_two_defects)) +
+  geom_boxplot(aes(fill=Qualityclass)) +
+  scale_fill_manual(values = c("darkseagreen", "indianred")) +
+  labs(x="Category two defects", y="Count")#The fourth plot is a boxplot comparing the number of category two defects by quality class. 
+
+coffee_alt <- coffee %>% drop_na(altitude_mean_meters)
+ggplot(coffee_alt, aes(y=altitude_mean_meters)) +
+  geom_boxplot(aes(fill=Qualityclass), outlier.shape = NA) +
+  coord_cartesian(ylim =  c(0, 2500)) +
+  scale_fill_manual(values = c("darkseagreen", "indianred")) +
+  labs(x="", y="Altitude")#The fifth plot is a boxplot comparing the altitude of coffee farms by quality class. 
+```
+
+In this part, we perform some data cleaning to prepare the data for GLMs. For instance, deleting rows with null values and converting quality of coffee from Poor and Good to a numerical variable with 0 and 1
+```{r dataset2, include=FALSE}
+coffee$Qualityclass <- as.integer(as.factor(coffee$Qualityclass))-1
+coffee$harvested <- as.numeric(coffee$harvested)
+coffee_glm <- na.omit(coffee)
+```
+
+## correlation analysis
+Next we perform a correlation matrix on some of the variables to see how they are related and be able to make a better decision about what models are best to fit. We have not used the country of origin as from the plots and summaries there didn't seem to be a relation between this variable and quality of coffee.
+```{r, eval = TRUE, fig.align = "center", fig.cap = "\\label{fig:scat} correlation between each variables", fig.pos = "H"}
+ggpairs(coffee_glm[,2:8])
+```
+
+Figure 1 shows there is strong correlation between the first three variables: aroma, flavor and acidity. In addition, aroma, flavor and acidity have medium correlation with Quality Class, category is in weak correlation. However, the correlation of the last two variables are strongly weak. 
+
+# GLM Part 1
+The strong correlation shows that we need can do further data cleaning. First, separating the dataset into two categories, the first one with the variables with high correlation values we have called this dataset coffee1_1 and the second with the uncorrelated variables, called coffee1_2.
+```{r, eval=TRUE, echo=FALSE}
+coffee1_1 <- coffee_glm[,2:4]
+coffee1_2 <- coffee_glm[,5:8]
+coffee1_3 <- coffee_glm[,2:8]
+```
+
+## Model 1 : The first three variables with principal component analysis and 3 variables.
+
+We performed a principal components analysis on coffee1_1.
+```{r, eval=TRUE, echo=FALSE}
+coffee1_1_pca<-princomp(coffee1_1, cor=T)
+summary(coffee1_1_pca)
+```
+As we can see from the table above, the cumulative proportion of the first component is 0.8746, so we can only choose the first component.
+```{r, eval=TRUE, echo=FALSE}
+cor11 <- cor(coffee1_1, coffee1_1)
+pca11 <- principal(cor11, nfactor = 1, rotate= "cluster")
+score11 <- predict.psych(pca11, coffee1_1 )
+final_1 <- cbind(score11, coffee1_2)
+```
+
+&nbsp;
+
+Trying: 1st glm function
+```{r, eval=TRUE, echo=FALSE}
+model_1 <- glm(Qualityclass ~ PC1+category_two_defects+
+                 altitude_mean_meters+harvested, data = final_1, 
+               family = binomial(link = "cloglog"))
+summary(model_1)
+```
+
+&nbsp;
+
+## Model 2 : All variables with principal component analysis.
+
+We performed a principal components analysis on coffee1_3.
+```{r, eval=TRUE,echo=FALSE}
+coffee1_3_pca<-princomp(coffee1_3, cor=T)
+summary(coffee1_3_pca)
+```
+As we can see from the table above, the cumulative proportion of the fourth component is 0.8608002, so we can only choose the first four component.
+```{r, eval=TRUE, echo=FALSE}
+cor13 <- cor(coffee1_3[,1:6], coffee1_3[,1:6])
+pca13 <- principal(cor13, nfactor = 4, rotate= "cluster")
+score13 <- predict.psych(pca13, coffee1_3[,1:6] )
+final_2 <- cbind(score13, coffee_glm$Qualityclass)
+```
+
+Trying: 2st glm function
+```{r, eval=TRUE, echo=FALSE}
+final_2 <- as.data.frame(final_2)
+model_2 <- glm(V5 ~ RC1+RC2+RC4+RC3, data = final_2, 
+               family = binomial(link = "logit"))
+summary(model_2)
+```
+
+All of these two models do not fit well, and the correlation figure shows that the last three variables have really weak relationship with Quality Class, so in this model, we try to fit the third model by deleting harvested, category and altitude.
+
+&nbsp;
+
+## Model 3 : First 3 variables with principal component analysis.
+```{r, eval=TRUE, echo=FALSE, warning=FALSE}
+coffee1_4 <- coffee1_3[,1:3]
+coffee1_4_pca<-princomp(coffee1_4, cor=T)
+summary(coffee1_4_pca)
+```
+As we can see from the table above, the cumulative proportion of the second component is 0.9561369, so we can only choose the first two components.
+```{r, eval=TRUE,echo=FALSE, warning=FALSE}
+cor14 <- cor(coffee1_4, coffee1_4)
+pca14 <- principal(cor14, nfactor = 2, rotate= "cluster")
+score14 <- predict.psych(pca14, coffee1_4)
+final_3 <- cbind(score14, coffee_glm$Qualityclass)
+```
+
+Trying: 3rd glm function
+```{r, eval=TRUE,echo=FALSE, warning=FALSE}
+final_3 <- as.data.frame(final_3)
+model_3 <- glm(V3 ~ RC1+RC2, data = final_3, 
+               family = binomial(link = "logit"))
+summary(model_3)
+```
+The p-values presented in the table above are all less than 0.05, indicating that the third model fits well and that the first three variables are the most important factors influencing the goodness of the fit.
+
+## Model 4 : First 3 variables and last one with principal component analysis.
+As seen in the boxplots and the correlation matrix there is a relationship between altitude and Quality Class, therefore we have performes a PCA using aroma, flavour, acidity and altitude and fitted a linear model with its components.
+```{r, eval=TRUE, echo=FALSE, warning=FALSE}
+coffee1_5 <- coffee_glm %>% select(aroma, flavor, acidity, altitude_mean_meters)
+coffee1_5_pca<-princomp(coffee1_5, cor=T)
+summary(coffee1_5_pca)
+```
+The PCA has cumulative proportion of 0.967 in the third component so we have fitted a GLM wiht the first 3 components.
+```{r, eval=TRUE, echo=FALSE, warning=FALSE}
+corr5 <- cor(coffee1_5, coffee1_5)
+pca4 <- principal(corr5, nfactor = 3, rotate= "cluster")
+score5 <- predict.psych(pca4, coffee1_5 )
+final_4 <- cbind(score5, coffee_glm$Qualityclass)
+final_4 <- as.data.frame(final_4)
+model_4 <- glm(V4 ~ RC1+RC2+RC3, data = final_4, 
+               family = binomial(link = "logit"))
+```
+The GLM has low p-values in all the components but one so it is not the model we have fitted.
+
+# GLM Part 2
+Even though the correlation matrix showed a high correlation between the variables aroma, flavor and acidity, we have perfored GLMs with them without performing PCA.
+
+We have done this given the quote by Applied Linear Statistical Models, p289, 4th Edition; *"The fact that some or all predictor variables are correlated among themselves does not, in general, inhibit our ability to obtain a good fit nor does it tend to affect inferences about mean responses or predictions of new observations."*
+
+We have removed all the outliers of our dataframe, as there looked to be a lot of them in the boxplots.
+```{r, echo=FALSE, warning=FALSE}
+# Define a function to remove outliers.
+## Remove outliers from a data frame
+### df: a data frame
+### var_name: the name of the column containing the variable of interest
+### return: the data frame with outliers removed
+
+remove_outliers <- function(df, var_name) {
+  # Calculate the lower and upper bounds
+  q <- quantile(df[[var_name]], probs=c(0.25, 0.75), na.rm=FALSE)
+  iqr <- IQR(df[[var_name]])
+  lower <- q[1] - 1.5 * iqr
+  upper <- q[2] + 1.5 * iqr
+  
+  # Subset the data frame to remove outliers
+  df <- subset(df, df[[var_name]] > lower & df[[var_name]] < upper)
+  
+  return(df)
+}
+
+## Call the above function for each variable that needs to remove outliers.
+coffee <- remove_outliers(coffee, "aroma")
+coffee <- remove_outliers(coffee, "flavor")
+coffee <- remove_outliers(coffee, "acidity")
+coffee <- remove_outliers(coffee, "category_two_defects")
+coffee <- remove_outliers(coffee, "altitude_mean_meters")
+
+coffee$Qualityclass <- as.factor(coffee$Qualityclass)
+```
+
+```{r, echo=FALSE, warning=FALSE}
+model1 <- glm(Qualityclass ~ aroma + flavor + acidity + category_two_defects + harvested + altitude_mean_meters,
+             data = coffee,
+             family = binomial(link = "logit"))
+summ(model1)
+```
+## Model 1
+We have fitted a model with aroma, flavor, acidity, category two defects, year harevested and altitude as explanatory variables
+```{r, echo=FALSE, warning=FALSE}
+model1 <- glm(Qualityclass ~ aroma + flavor + acidity + category_two_defects + altitude_mean_meters,
+             data = coffee,
+             family = binomial(link = "logit"))
+summ(model1)
+```
+As the p-value for category two defects in the model is greater than 0.05, we have fitted a new GLm without it as an explanory variable.
+
+## Model 2
+```{r, echo=FALSE, warning=FALSE}
+
+model2 <- glm(Qualityclass ~ aroma + flavor + acidity + harvested + altitude_mean_meters,
+             data = coffee,
+             family = binomial(link = "logit"))
+
+summ(model2)
+
+model2 %>%
+  coef() %>%
+  exp()
+
+#Add the fitted values to the coffee data frame.
+coffee <- coffee %>%
+  mutate(Qualityclass_fitted = fitted(model2))
+
+
+
+plot_model(model2, show.values = TRUE,
+           title = "", show.p = FALSE, value.offset = 0.25)
+
+plot_model(model2,show.values = TRUE,
+           title = "Odds(Good/Poor)",show.p = FALSE)
+
+```
+
+Given that the p-value for year harvested is 0.04 which is close to 0.05, we have performed a model without year harvested as a explanatory variable to compared to this last model.
+
+## Model 3
+```{r, echo=FALSE, warning=FALSE}
+
+model3 <- glm(Qualityclass ~ aroma + flavor + acidity + harvested + altitude_mean_meters,
+             data = coffee,
+             family = binomial(link = "logit"))
+
+summ(model3)
+
+model3 %>%
+  coef() %>%
+  exp()
+
+#Add the fitted values to the coffee data frame.
+coffee <- coffee %>%
+  mutate(Qualityclass_fitted = fitted(model2))
+
+
+
+plot_model(model3, show.values = TRUE,
+           title = "", show.p = FALSE, value.offset = 0.25)
+
+plot_model(model3,show.values = TRUE,
+           title = "Odds(Good/Poor)",show.p = FALSE)
+
+```
+This last model has all p-values under 0.05. If we compare the AIC and BIC of the models, model 2 has a lower AIC but model 3 has a lower BIC. This suggests that both models are good and that we can use either of them.
