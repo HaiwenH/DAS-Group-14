@@ -2,7 +2,7 @@
 title: "Group_14_Analysis"
 output: pdf_document
 ---
-#Introduction
+# Introduction
 
 ```{r packages, include=FALSE}
 library(ggplot2)
@@ -21,12 +21,31 @@ library(psych)
 library(janitor)
 ```
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Here is the brief description of the data:
+
+Variable Name             | Description    
+:------------------------:|:------------------------------:
+ country_of_origin        | Country where the coffee bean originates from           
+ aroma                    | Aroma grade (ranging from 0-10)           
+ flavor                   | Flavour grade (ranging from 0-10)
+ acidity                  | Acidity grade (ranging from 0-10)
+ category_two_defects     | Count of category 2 type defects in the batch of coffee beans tested          
+ altitiude_mean_meters    | Mean altitude of the growers farm (in metres) 
+ harvested                |Year the batch was harvested
+ Qualityclass             |Quality score for the batch.
+
+Note: About Qualityclass, 82.5 was selected as the cut off as this is the median score for all the batches tested.
+
 ```{r dataset, include=FALSE}
 coffee <- read.csv("https://raw.githubusercontent.com/martacasero7/DAS-Group-14/main/dataset14.csv")
 coffee <- na.omit(coffee)
 ```
 
-#Summaries
+# Summaries
 ```{r summarytable, echo=FALSE, warning=FALSE, message=FALSE,results='markup', fig.show='asis', eval=TRUE, table.pos="H"}
 library(skimr)
 library(kableExtra)
